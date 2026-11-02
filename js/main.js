@@ -629,7 +629,6 @@
     document.addEventListener('fullscreenchange', onFsChange);
     document.addEventListener('webkitfullscreenchange', onFsChange);
     function start() {
-      if (matchMedia('(max-width: 760px), (pointer: coarse)').matches && !box.classList.contains('full')) enterFull();
       state = 'playing'; burst = false;
       overlay.classList.add('hide');
       audio.currentTime = 0;
