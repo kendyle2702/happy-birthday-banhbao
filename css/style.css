@@ -226,6 +226,33 @@ button { font: inherit; color: inherit; cursor: pointer; }
 .chapter.final .ch-head p { margin: 6px auto 0; }
 .chapter.final .ch-head h3 { font-size: clamp(2.4rem, 7vw, 3.6rem); }
 
+/* ================= VIDEO ================= */
+.vid {
+  position: relative; max-width: 960px; margin: 34px auto 0; aspect-ratio: 16 / 9;
+  border-radius: 18px; overflow: hidden; background: #0b0212;
+  box-shadow: 0 30px 80px rgba(0, 0, 0, .6), 0 0 0 1px rgba(255, 255, 255, .1), 0 0 60px rgba(255, 92, 138, .25);
+}
+@media (max-aspect-ratio: 1 / 1) { .vid { aspect-ratio: 3 / 4; } }
+.vid canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: pointer; }
+.vid-overlay {
+  position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
+  background: radial-gradient(circle, rgba(18, 5, 31, .2), rgba(18, 5, 31, .7)); transition: opacity .5s;
+}
+.vid-overlay.hide { opacity: 0; pointer-events: none; }
+.vid-play {
+  width: 86px; height: 86px; border-radius: 50%; border: 0; font-size: 34px; padding-left: 6px; color: #fff;
+  background: linear-gradient(135deg, var(--pink), var(--violet)); box-shadow: 0 10px 40px rgba(255, 92, 138, .6);
+  animation: pulse 2.4s ease-in-out infinite; transition: transform .25s, opacity .3s;
+}
+.vid-play:hover { transform: scale(1.08); }
+.vid-play:disabled { opacity: .4; animation: none; cursor: wait; }
+#vid-status { font-weight: 600; opacity: .9; text-shadow: 0 2px 8px rgba(0, 0, 0, .7); }
+.vid-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255, 255, 255, .12); }
+.vid-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--pink), var(--gold)); }
+.vid-fs { position: absolute; right: 12px; top: 12px; width: 40px; height: 40px; border: 0; border-radius: 10px; background: rgba(0, 0, 0, .35); font-size: 20px; opacity: .8; z-index: 2; }
+.vid.full { position: fixed; inset: 0; z-index: 80; max-width: none; margin: 0; border-radius: 0; aspect-ratio: auto; }
+body.vid-full .tabs, body.vid-full #music-btn { display: none; }
+
 /* ================= ALBUM ================= */
 .album { display: grid; grid-template-columns: repeat(auto-fill, minmax(230px, 1fr)); gap: 40px 34px; padding: 50px 10px 20px; }
 .polaroid {

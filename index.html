@@ -9,7 +9,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="css/style.css?v=202611022310">
+  <link rel="stylesheet" href="css/style.css?v=202611022327">
 </head>
 <body>
   <canvas id="bg"></canvas>
@@ -31,6 +31,7 @@
     <nav class="tabs">
       <button data-tab="home" class="active"><span class="ico">🏠</span><span class="lbl">Lời chúc</span></button>
       <button data-tab="story"><span class="ico">📖</span><span class="lbl">Kỷ niệm</span></button>
+      <button data-tab="video"><span class="ico">🎬</span><span class="lbl">Video</span></button>
       <button data-tab="album"><span class="ico">📸</span><span class="lbl">Album</span></button>
       <button data-tab="cake"><span class="ico">🎂</span><span class="lbl">Bánh kem</span></button>
     </nav>
@@ -67,6 +68,21 @@
         <div class="hud-bar"><i id="hud-fill"></i></div>
       </div>
       <div class="journey" id="journey"></div>
+    </section>
+
+    <!-- VIDEO -->
+    <section class="tab" id="tab-video">
+      <h2 class="section-title">Tua lại kỷ niệm</h2>
+      <p class="section-sub">Bật âm thanh lên rồi bấm play nhé 🔊</p>
+      <div class="vid" id="vid">
+        <canvas id="vid-canvas"></canvas>
+        <div class="vid-overlay" id="vid-overlay">
+          <button class="vid-play" id="vid-play" disabled aria-label="Phát">▶</button>
+          <p id="vid-status">Đang tải ảnh…</p>
+        </div>
+        <div class="vid-bar"><i id="vid-progress"></i></div>
+        <button class="vid-fs" id="vid-fs" aria-label="Phóng to">⛶</button>
+      </div>
     </section>
 
     <!-- ALBUM -->
@@ -128,7 +144,7 @@
     <button class="lb-nav next" aria-label="Sau">›</button>
   </div>
 
-  <script src="js/config.js?v=202611022310"></script>
-  <script src="js/main.js?v=202611022310"></script>
+  <script src="js/config.js?v=202611022327"></script>
+  <script src="js/main.js?v=202611022327"></script>
 </body>
 </html>

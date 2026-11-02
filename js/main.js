@@ -185,8 +185,9 @@
     step();
   }
   function playTrack(name) {
-    const prev = tracks[current], next = tracks[name];
+    const prev = tracks[current], next = name ? tracks[name] : null;
     if (prev !== next) fade(prev, 0, 700, () => prev.pause());
+    if (!name) return; // tab Video: tắt nhạc nền, video có nhạc riêng
     current = name;
     if (muted || voiceOn) return;
     next.play().then(() => { musicBtn.classList.add('playing'); fade(next, VOL, 1000); }).catch(() => {});
@@ -217,6 +218,7 @@
   }
   musicBtn.addEventListener('click', () => {
     muted = !muted;
+    if (videoApi) videoApi.setMuted(muted);
     if (muted) {
       musicBtn.classList.remove('playing');
       for (const a of [...Object.values(tracks), voice]) fade(a, 0, 400, () => a.pause());
@@ -255,14 +257,16 @@
     scrollTo({ top: 0, behavior: 'smooth' });
     history.replaceState(null, '', '#' + name);
     if (!inited[name]) { inited[name] = true; initers[name](); }
-    const track = name === 'cake' ? 'bday' : 'bg';
+    const track = name === 'cake' ? 'bday' : name === 'video' ? null : 'bg';
+    if (name !== 'video' && videoApi) videoApi.leave();
     if (name === 'story' && !voiceDone && C.music.journeyIntro) { voiceDone = true; playVoice(track); }
     else { if (name !== 'story') stopVoice(); playTrack(track); }
   }
   $$('[data-tab]').forEach((b) => b.addEventListener('click', () => showTab(b.dataset.tab)));
   document.addEventListener('click', (e) => { const b = e.target.closest('[data-goto]'); if (b) showTab(b.dataset.goto); });
 
-  const initers = { home: initHome, story: initStory, album: initAlbum, cake: initCake };
+  const initers = { home: initHome, story: initStory, video: initVideo, album: initAlbum, cake: initCake };
+  let videoApi = null;
 
   /* =================== HOME =================== */
   function initHome() {
@@ -414,6 +418,216 @@
     };
     render(shown);
     loop();
+  }
+
+  /* =================== VIDEO: TUA LẠI KỶ NIỆM =================== */
+  function initVideo() {
+    const V = C.video;
+    const box = $('#vid'), cv = $('#vid-canvas'), ctx = cv.getContext('2d');
+    const overlay = $('#vid-overlay'), playBtn = $('#vid-play'), status = $('#vid-status'), prog = $('#vid-progress');
+    const audio = new Audio(V.music);
+    audio.preload = 'auto';
+    audio.muted = muted;
+    const B = (k) => V.offset + k * V.beat;
+
+    // ---- Kịch bản: tua ngược (ảnh bất kỳ, mới → cũ) → PLAY (ảnh 2 đứa, cũ → mới) → kết
+    const all = C.chapters.flatMap((c) => c.photos);
+    const RW = 18;
+    const rew = Array.from({ length: RW }, (_, i) => all[Math.round((all.length - 1) * (1 - i / (RW - 1)))]);
+    const seq = [];
+    rew.forEach((f, i) => seq.push({ f, src: thumb(f), mode: 'rewind', start: B(i / 2), end: B((i + 1) / 2) }));
+    let k = RW / 2;
+    V.photos.forEach((f, i) => {
+      const len = i < 7 ? 2 : 1; // chậm lúc đầu, dồn dập dần
+      seq.push({ f, src: full(f), mode: 'play', start: B(k), end: B(k + len), idx: i });
+      k += len;
+    });
+    seq.push({ f: V.finalPhoto, src: full(V.finalPhoto), mode: 'final', start: B(k), end: 1e9 });
+
+    // ---- Tải ảnh
+    const imgs = {};
+    let loaded = 0;
+    const uniq = [...new Set(seq.map((x) => x.src))];
+    const ready = Promise.all(uniq.map((src) => new Promise((res) => {
+      const im = new Image();
+      im.onload = im.onerror = () => { loaded++; status.textContent = `Đang tải ảnh… ${loaded}/${uniq.length}`; res(); };
+      im.src = src;
+      imgs[src] = im;
+    })));
+    ready.then(() => document.fonts.ready).then(() => {
+      playBtn.disabled = false;
+      status.textContent = 'Bấm ▶ để tua lại kỷ niệm';
+      drawFrame(0);
+    });
+
+    // ---- Canvas & lớp hiệu ứng dựng sẵn
+    let W = 0, H = 0, dpr = 1;
+    const small = document.createElement('canvas'), sctx = small.getContext('2d');
+    const noises = Array.from({ length: 3 }, () => {
+      const c = document.createElement('canvas'); c.width = c.height = 200;
+      const x = c.getContext('2d'), d = x.createImageData(200, 200);
+      for (let i = 0; i < d.data.length; i += 4) { const v = Math.random() * 255; d.data[i] = d.data[i + 1] = d.data[i + 2] = v; d.data[i + 3] = 255; }
+      x.putImageData(d, 0, 0); return c;
+    });
+    let scan = null;
+    function fit() {
+      dpr = Math.min(devicePixelRatio || 1, 2);
+      const r = box.getBoundingClientRect();
+      W = cv.width = Math.round(r.width * dpr);
+      H = cv.height = Math.round(r.height * dpr);
+      scan = document.createElement('canvas'); scan.width = 4; scan.height = Math.max(3, Math.round(3 * dpr));
+      const sx = scan.getContext('2d'); sx.fillStyle = 'rgba(0,0,0,.55)'; sx.fillRect(0, 0, 4, Math.max(1, Math.round(dpr)));
+      drawFrame(state === 'idle' ? 0 : clock());
+    }
+    new ResizeObserver(fit).observe(box);
+
+    const ease = (x) => 1 - Math.pow(1 - x, 3);
+    const clamp = (x) => Math.max(0, Math.min(1, x));
+    function photo(im, zoom, panX, panY) {
+      if (!im || !im.naturalWidth) { ctx.fillStyle = '#1a0726'; ctx.fillRect(0, 0, W, H); return; }
+      const iw = im.naturalWidth, ih = im.naturalHeight;
+      // nền: ảnh phủ kín, làm mờ bằng cách thu nhỏ rồi phóng to
+      const sw = 48, sh = Math.max(1, Math.round(48 * H / W));
+      small.width = sw; small.height = sh;
+      const cs = Math.max(sw / iw, sh / ih);
+      sctx.drawImage(im, (sw - iw * cs) / 2, (sh - ih * cs) / 2, iw * cs, ih * cs);
+      ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
+      ctx.drawImage(small, 0, 0, W, H);
+      ctx.fillStyle = 'rgba(12,2,22,.5)'; ctx.fillRect(0, 0, W, H);
+      // ảnh chính: vừa khung + zoom/pan kiểu Ken Burns
+      const s = Math.min(W / iw, H / ih) * zoom;
+      const dw = iw * s, dh = ih * s;
+      ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 40 * dpr;
+      ctx.drawImage(im, (W - dw) / 2 + panX * W, (H - dh) / 2 + panY * H, dw, dh);
+      ctx.shadowBlur = 0;
+    }
+    function grain(alpha, lines) {
+      ctx.globalAlpha = alpha;
+      ctx.fillStyle = ctx.createPattern(noises[(Math.random() * 3) | 0], 'repeat');
+      ctx.save(); ctx.translate(Math.random() * 200, Math.random() * 200); ctx.fillRect(-200, -200, W + 200, H + 200); ctx.restore();
+      ctx.globalAlpha = lines;
+      ctx.fillStyle = ctx.createPattern(scan, 'repeat'); ctx.fillRect(0, 0, W, H);
+      ctx.globalAlpha = 1;
+      const g = ctx.createRadialGradient(W / 2, H / 2, Math.min(W, H) * 0.35, W / 2, H / 2, Math.max(W, H) * 0.75);
+      g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.65)');
+      ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
+    }
+    const U = () => Math.min(W, H * 1.5) / 100; // đơn vị chữ
+    function hudText(txt, x, y, align, color, size) {
+      ctx.font = `700 ${size * U()}px "Courier New", ui-monospace, monospace`;
+      ctx.textAlign = align; ctx.textBaseline = 'top';
+      ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillText(txt, x + 0.25 * U(), y + 0.25 * U());
+      ctx.fillStyle = color; ctx.fillText(txt, x, y);
+    }
+    function camcorder(label, d, t, blink) {
+      const m = 3.2 * U(), sz = 3.4;
+      hudText(label, m, m, 'left', '#fff4d6', sz);
+      if (blink && Math.floor(t * 2) % 2 === 0) {
+        const rx = W - m - 48 * dpr; // chừa chỗ cho nút phóng to
+        ctx.fillStyle = '#ff3b5c'; ctx.beginPath(); ctx.arc(rx - 1.6 * U(), m + 1.7 * U(), 1.3 * U(), 0, TAU); ctx.fill();
+        hudText('REC', rx - 3.8 * U(), m, 'right', '#fff4d6', sz);
+      }
+      if (d) {
+        hudText(`${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`, W - m, H - m - 4 * U(), 'right', '#ffd27a', sz);
+        const n = elapsed(d);
+        hudText(n >= 0 ? `NGÀY ${n}` : `${-n} NGÀY TRƯỚC`, m, H - m - 4 * U(), 'left', '#ffd27a', sz);
+      }
+    }
+    function tear() {
+      for (let i = 0; i < 6; i++) {
+        const y = Math.random() * H, h = (4 + Math.random() * 40) * dpr, dx = (Math.random() - 0.5) * 60 * dpr;
+        ctx.drawImage(cv, 0, y, W, h, dx, y, W, h);
+      }
+      ctx.globalCompositeOperation = 'screen';
+      ctx.fillStyle = 'rgba(60,90,255,.18)'; ctx.fillRect(0, 0, W, H);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    function centerText(txt, y, font, color, alpha, glow) {
+      ctx.globalAlpha = alpha; ctx.font = font; ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.shadowColor = glow; ctx.shadowBlur = 24 * dpr; ctx.fillStyle = color; ctx.fillText(txt, W / 2, y);
+      ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+    }
+
+    function drawFrame(t) {
+      if (!W) return;
+      if (state === 'idle') { // màn chờ: ảnh kết làm nền
+        photo(imgs[full(V.finalPhoto)], 1, 0, 0);
+        ctx.fillStyle = 'rgba(12,2,22,.45)'; ctx.fillRect(0, 0, W, H);
+        grain(0.05, 0.12);
+        return;
+      }
+      let cur = seq[0];
+      for (const x of seq) if (t >= x.start) cur = x;
+      const im = imgs[cur.src], d = fdate(cur.f), p = clamp((t - cur.start) / Math.min(4, cur.end - cur.start));
+
+      if (cur.mode === 'rewind') {
+        photo(im, 1.04, 0, 0);
+        tear();
+        grain(0.16, 0.35);
+        camcorder('◀◀ REWIND', d, t, false);
+      } else if (cur.mode === 'play') {
+        const dir = cur.idx % 2 ? 1 : -1;
+        const punch = 1 - ease(clamp((t - cur.start) / 0.18));
+        photo(im, 1.02 + 0.07 * p + 0.1 * punch, dir * 0.012 * p, -0.008 * p);
+        // chớp trắng khi chuyển ảnh, mạnh hơn ở khung PLAY đầu tiên
+        const flash = cur.idx === 0 ? 1 - clamp((t - cur.start) / 0.5) : 0.35 * punch;
+        if (flash > 0) { ctx.fillStyle = `rgba(255,245,250,${flash})`; ctx.fillRect(0, 0, W, H); }
+        grain(0.06, 0.12);
+        camcorder('▶ PLAY', d, t, true);
+      } else {
+        const q = clamp((t - cur.start) / 3.5);
+        photo(im, 1 + 0.12 * ease(q), 0, 0);
+        ctx.fillStyle = `rgba(20,2,30,${0.15 + 0.4 * clamp((t - cur.start - 0.3) / 1.0)})`; ctx.fillRect(0, 0, W, H);
+        const f1 = clamp((t - cur.start - 0.4) / 0.7), f2 = clamp((t - cur.start - 0.9) / 0.7), f3 = clamp((t - cur.start - 1.5) / 0.7);
+        centerText('Happy Birthday', H * 0.38, `700 ${11 * U()}px "Dancing Script", cursive`, '#ffe3ec', f1, 'rgba(255,92,138,.9)');
+        centerText(C.herName, H * 0.53, `700 ${8.5 * U()}px "Dancing Script", cursive`, '#ffd166', f2, 'rgba(255,209,102,.7)');
+        const n = elapsed(new Date(new Date().setHours(0, 0, 0, 0)));
+        centerText(`${n} ngày — và còn nữa…`, H * 0.66, `600 ${3.6 * U()}px Quicksand, sans-serif`, '#fff', f3, 'rgba(255,92,138,.8)');
+        grain(0.05, 0.08);
+        if (t - cur.start < 0.4) camcorder('▶ PLAY', d, t, true);
+      }
+      const dur = audio.duration || 20.17;
+      prog.style.width = Math.min(100, (t / dur) * 100) + '%';
+    }
+
+    // ---- Điều khiển
+    let state = 'idle', t0 = 0, raf = 0, burst = false;
+    const clock = () => (audio.readyState >= 2 && !audio.paused ? audio.currentTime : (performance.now() - t0) / 1000);
+    function tick() {
+      const t = clock();
+      drawFrame(t);
+      const fin = seq[seq.length - 1];
+      if (!burst && t > fin.start + 1) { burst = true; const r = box.getBoundingClientRect(); heartBurst(r.left + r.width / 2, r.top + r.height / 2, 40, 9); }
+      if (state === 'playing' && t > (audio.duration || 20.2) + 0.3) { stop('Xem lại nhé? 💞'); return; }
+      if (state === 'playing') raf = requestAnimationFrame(tick);
+    }
+    function start() {
+      state = 'playing'; burst = false;
+      overlay.classList.add('hide');
+      audio.currentTime = 0;
+      t0 = performance.now();
+      audio.play().catch(() => {});
+      cancelAnimationFrame(raf); tick();
+    }
+    function stop(text) {
+      state = 'ended'; cancelAnimationFrame(raf);
+      playBtn.textContent = '↺'; status.textContent = text;
+      overlay.classList.remove('hide');
+    }
+    audio.addEventListener('ended', () => { drawFrame(audio.duration); stop('Xem lại nhé? 💞'); });
+    playBtn.addEventListener('click', (e) => { e.stopPropagation(); start(); });
+    cv.addEventListener('click', () => {
+      if (state !== 'playing') return;
+      if (audio.paused) { audio.play(); tick(); } else { audio.pause(); cancelAnimationFrame(raf); }
+    });
+    $('#vid-fs').addEventListener('click', () => { box.classList.toggle('full'); document.body.classList.toggle('vid-full'); });
+    videoApi = {
+      leave() {
+        if (box.classList.contains('full')) { box.classList.remove('full'); document.body.classList.remove('vid-full'); }
+        if (state === 'playing') { audio.pause(); stop('Tiếp tục xem lại từ đầu nhé ▶'); playBtn.textContent = '▶'; }
+      },
+      setMuted(m) { audio.muted = m; },
+    };
   }
 
   /* =================== ALBUM =================== */
