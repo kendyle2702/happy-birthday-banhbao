@@ -232,7 +232,7 @@ button { font: inherit; color: inherit; cursor: pointer; }
   border-radius: 18px; overflow: hidden; background: #0b0212;
   box-shadow: 0 30px 80px rgba(0, 0, 0, .6), 0 0 0 1px rgba(255, 255, 255, .1), 0 0 60px rgba(255, 92, 138, .25);
 }
-@media (max-aspect-ratio: 1 / 1) { .vid { aspect-ratio: 3 / 4; } }
+@media (max-aspect-ratio: 1 / 1) { .vid { aspect-ratio: 9 / 16; max-height: calc(100svh - 190px); margin-top: 20px; border-radius: 14px; } }
 .vid canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: pointer; }
 .vid-overlay {
   position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 14px;
@@ -249,8 +249,9 @@ button { font: inherit; color: inherit; cursor: pointer; }
 #vid-status { font-weight: 600; opacity: .9; text-shadow: 0 2px 8px rgba(0, 0, 0, .7); }
 .vid-bar { position: absolute; left: 0; right: 0; bottom: 0; height: 4px; background: rgba(255, 255, 255, .12); }
 .vid-bar i { display: block; height: 100%; width: 0; background: linear-gradient(90deg, var(--pink), var(--gold)); }
-.vid-fs { position: absolute; right: 12px; top: 12px; width: 40px; height: 40px; border: 0; border-radius: 10px; background: rgba(0, 0, 0, .35); font-size: 20px; opacity: .8; z-index: 2; }
-.vid.full { position: fixed; inset: 0; z-index: 80; max-width: none; margin: 0; border-radius: 0; aspect-ratio: auto; }
+.vid-fs { position: absolute; right: 12px; top: max(12px, env(safe-area-inset-top)); width: 40px; height: 40px; border: 0; border-radius: 10px; background: rgba(0, 0, 0, .35); font-size: 20px; opacity: .8; z-index: 2; }
+.vid.full { position: fixed; inset: 0; z-index: 80; width: 100vw; height: 100vh; height: 100dvh; max-width: none; max-height: none; margin: 0; border-radius: 0; aspect-ratio: auto; }
+body.vid-full { overflow: hidden; }
 body.vid-full .tabs, body.vid-full #music-btn { display: none; }
 
 /* ================= ALBUM ================= */

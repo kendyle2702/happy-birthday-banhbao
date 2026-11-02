@@ -483,9 +483,15 @@
 
     const ease = (x) => 1 - Math.pow(1 - x, 3);
     const clamp = (x) => Math.max(0, Math.min(1, x));
-    function photo(im, zoom, panX, panY) {
+    function photo(im, zoom, panX, panY, sweep = 0.5, cover = false) {
       if (!im || !im.naturalWidth) { ctx.fillStyle = '#1a0726'; ctx.fillRect(0, 0, W, H); return; }
       const iw = im.naturalWidth, ih = im.naturalHeight;
+      const ra = iw / ih > W / H ? (iw / ih) / (W / H) : (W / H) / (iw / ih);
+      if (cover || ra < 1.4) { // tỉ lệ ảnh gần với khung (hoặc cảnh kết) → phủ kín cho rõ
+        const s = Math.max(W / iw, H / ih) * zoom, dw = iw * s, dh = ih * s;
+        ctx.drawImage(im, (W - dw) / 2 + panX * W, (H - dh) / 2 + panY * H, dw, dh);
+        return;
+      }
       // nền: ảnh phủ kín, làm mờ bằng cách thu nhỏ rồi phóng to
       const sw = 48, sh = Math.max(1, Math.round(48 * H / W));
       small.width = sw; small.height = sh;
@@ -494,11 +500,16 @@
       ctx.imageSmoothingEnabled = true; ctx.imageSmoothingQuality = 'high';
       ctx.drawImage(small, 0, 0, W, H);
       ctx.fillStyle = 'rgba(12,2,22,.5)'; ctx.fillRect(0, 0, W, H);
-      // ảnh chính: vừa khung + zoom/pan kiểu Ken Burns
-      const s = Math.min(W / iw, H / ih) * zoom;
+      // ảnh chính: vừa khung + zoom/pan kiểu Ken Burns.
+      // Ảnh ngang trên màn hình dọc: phóng to ≥ 50% chiều cao rồi lia ngang để thấy hết người 2 bên
+      let s = Math.min(W / iw, H / ih);
+      if (H > W && iw > ih) s = Math.max(s, (H * 0.5) / ih);
+      s *= zoom;
       const dw = iw * s, dh = ih * s;
+      const over = Math.max(0, dw - W);
+      const x = over > 0 ? -over * sweep : (W - dw) / 2 + panX * W;
       ctx.shadowColor = 'rgba(0,0,0,.6)'; ctx.shadowBlur = 40 * dpr;
-      ctx.drawImage(im, (W - dw) / 2 + panX * W, (H - dh) / 2 + panY * H, dw, dh);
+      ctx.drawImage(im, x, (H - dh) / 2 + panY * H, dw, dh);
       ctx.shadowBlur = 0;
     }
     function grain(alpha, lines) {
@@ -512,7 +523,7 @@
       g.addColorStop(0, 'rgba(0,0,0,0)'); g.addColorStop(1, 'rgba(0,0,0,.65)');
       ctx.fillStyle = g; ctx.fillRect(0, 0, W, H);
     }
-    const U = () => Math.min(W, H * 1.5) / 100; // đơn vị chữ
+    const U = () => (Math.min(W, H * 1.5) / 100) * (H > W ? 1.25 : 1); // đơn vị chữ (to hơn khi màn hình dọc)
     function hudText(txt, x, y, align, color, size) {
       ctx.font = `700 ${size * U()}px "Courier New", ui-monospace, monospace`;
       ctx.textAlign = align; ctx.textBaseline = 'top';
@@ -520,7 +531,7 @@
       ctx.fillStyle = color; ctx.fillText(txt, x, y);
     }
     function camcorder(label, d, t, blink) {
-      const m = 3.2 * U(), sz = 3.4;
+      const m = 3.2 * U(), sz = 3.4, mb = H > W ? m * 1.8 : m; // chừa thanh home trên iPhone
       hudText(label, m, m, 'left', '#fff4d6', sz);
       if (blink && Math.floor(t * 2) % 2 === 0) {
         const rx = W - m - 48 * dpr; // chừa chỗ cho nút phóng to
@@ -528,9 +539,9 @@
         hudText('REC', rx - 3.8 * U(), m, 'right', '#fff4d6', sz);
       }
       if (d) {
-        hudText(`${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`, W - m, H - m - 4 * U(), 'right', '#ffd27a', sz);
+        hudText(`${pad2(d.getDate())}.${pad2(d.getMonth() + 1)}.${d.getFullYear()}`, W - m, H - mb - 4 * U(), 'right', '#ffd27a', sz);
         const n = elapsed(d);
-        hudText(n >= 0 ? `NGÀY ${n}` : `${-n} NGÀY TRƯỚC`, m, H - m - 4 * U(), 'left', '#ffd27a', sz);
+        hudText(n >= 0 ? `NGÀY ${n}` : `${-n} NGÀY TRƯỚC`, m, H - mb - 4 * U(), 'left', '#ffd27a', sz);
       }
     }
     function tear() {
@@ -551,7 +562,7 @@
     function drawFrame(t) {
       if (!W) return;
       if (state === 'idle') { // màn chờ: ảnh kết làm nền
-        photo(imgs[full(V.finalPhoto)], 1, 0, 0);
+        photo(imgs[full(V.finalPhoto)], 1, 0, 0, 0.5, true);
         ctx.fillStyle = 'rgba(12,2,22,.45)'; ctx.fillRect(0, 0, W, H);
         grain(0.05, 0.12);
         return;
@@ -568,7 +579,8 @@
       } else if (cur.mode === 'play') {
         const dir = cur.idx % 2 ? 1 : -1;
         const punch = 1 - ease(clamp((t - cur.start) / 0.18));
-        photo(im, 1.02 + 0.07 * p + 0.1 * punch, dir * 0.012 * p, -0.008 * p);
+        const sw = clamp((t - cur.start) / (cur.end - cur.start));
+        photo(im, 1.02 + 0.07 * p + 0.1 * punch, dir * 0.012 * p, -0.008 * p, dir > 0 ? 0.15 + 0.7 * sw : 0.85 - 0.7 * sw);
         // chớp trắng khi chuyển ảnh, mạnh hơn ở khung PLAY đầu tiên
         const flash = cur.idx === 0 ? 1 - clamp((t - cur.start) / 0.5) : 0.35 * punch;
         if (flash > 0) { ctx.fillStyle = `rgba(255,245,250,${flash})`; ctx.fillRect(0, 0, W, H); }
@@ -576,13 +588,14 @@
         camcorder('▶ PLAY', d, t, true);
       } else {
         const q = clamp((t - cur.start) / 3.5);
-        photo(im, 1 + 0.12 * ease(q), 0, 0);
+        photo(im, 1 + 0.12 * ease(q), 0, 0, 0.5, true);
         ctx.fillStyle = `rgba(20,2,30,${0.15 + 0.4 * clamp((t - cur.start - 0.3) / 1.0)})`; ctx.fillRect(0, 0, W, H);
         const f1 = clamp((t - cur.start - 0.4) / 0.7), f2 = clamp((t - cur.start - 0.9) / 0.7), f3 = clamp((t - cur.start - 1.5) / 0.7);
-        centerText('Happy Birthday', H * 0.38, `700 ${11 * U()}px "Dancing Script", cursive`, '#ffe3ec', f1, 'rgba(255,92,138,.9)');
-        centerText(C.herName, H * 0.53, `700 ${8.5 * U()}px "Dancing Script", cursive`, '#ffd166', f2, 'rgba(255,209,102,.7)');
+        const tall = H > W, y1 = tall ? 0.42 : 0.38, y2 = tall ? 0.5 : 0.53, y3 = tall ? 0.57 : 0.66;
+        centerText('Happy Birthday', H * y1, `700 ${11 * U()}px "Dancing Script", cursive`, '#ffe3ec', f1, 'rgba(255,92,138,.9)');
+        centerText(C.herName, H * y2, `700 ${8.5 * U()}px "Dancing Script", cursive`, '#ffd166', f2, 'rgba(255,209,102,.7)');
         const n = elapsed(new Date(new Date().setHours(0, 0, 0, 0)));
-        centerText(`${n} ngày — và còn nữa…`, H * 0.66, `600 ${3.6 * U()}px Quicksand, sans-serif`, '#fff', f3, 'rgba(255,92,138,.8)');
+        centerText(`${n} ngày — và còn nữa…`, H * y3, `600 ${3.6 * U()}px Quicksand, sans-serif`, '#fff', f3, 'rgba(255,92,138,.8)');
         grain(0.05, 0.08);
         if (t - cur.start < 0.4) camcorder('▶ PLAY', d, t, true);
       }
@@ -601,7 +614,22 @@
       if (state === 'playing' && t > (audio.duration || 20.2) + 0.3) { stop('Xem lại nhé? 💞'); return; }
       if (state === 'playing') raf = requestAnimationFrame(tick);
     }
+    const fsBtn = $('#vid-fs');
+    function enterFull() {
+      box.classList.add('full'); document.body.classList.add('vid-full'); fsBtn.textContent = '✕';
+      const rf = box.requestFullscreen || box.webkitRequestFullscreen; // Android/desktop; iPhone dùng chế độ phủ màn hình bằng CSS
+      if (rf) { try { const r = rf.call(box); if (r && r.catch) r.catch(() => {}); } catch {} }
+    }
+    function exitFull() {
+      box.classList.remove('full'); document.body.classList.remove('vid-full'); fsBtn.textContent = '⛶';
+      const fe = document.fullscreenElement || document.webkitFullscreenElement;
+      if (fe) (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+    }
+    const onFsChange = () => { if (!(document.fullscreenElement || document.webkitFullscreenElement) && box.classList.contains('full')) exitFull(); };
+    document.addEventListener('fullscreenchange', onFsChange);
+    document.addEventListener('webkitfullscreenchange', onFsChange);
     function start() {
+      if (matchMedia('(max-width: 760px), (pointer: coarse)').matches && !box.classList.contains('full')) enterFull();
       state = 'playing'; burst = false;
       overlay.classList.add('hide');
       audio.currentTime = 0;
@@ -620,10 +648,10 @@
       if (state !== 'playing') return;
       if (audio.paused) { audio.play(); tick(); } else { audio.pause(); cancelAnimationFrame(raf); }
     });
-    $('#vid-fs').addEventListener('click', () => { box.classList.toggle('full'); document.body.classList.toggle('vid-full'); });
+    fsBtn.addEventListener('click', (e) => { e.stopPropagation(); box.classList.contains('full') ? exitFull() : enterFull(); });
     videoApi = {
       leave() {
-        if (box.classList.contains('full')) { box.classList.remove('full'); document.body.classList.remove('vid-full'); }
+        if (box.classList.contains('full')) exitFull();
         if (state === 'playing') { audio.pause(); stop('Tiếp tục xem lại từ đầu nhé ▶'); playBtn.textContent = '▶'; }
       },
       setMuted(m) { audio.muted = m; },
