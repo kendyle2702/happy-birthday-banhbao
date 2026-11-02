@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Happy Birthday 💖</title>
+  <meta name="theme-color" content="#12051f">
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>💖</text></svg>">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Quicksand:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="bg"></canvas>
+  <canvas id="fx"></canvas>
+
+  <!-- ============ INTRO: HỘP QUÀ ============ -->
+  <section id="intro">
+    <p class="intro-small">Có một món quà nhỏ dành cho</p>
+    <h1 class="intro-name" data-name></h1>
+    <div class="gift" id="gift" role="button" aria-label="Mở quà">
+      <div class="gift-lid"><span class="bow">🎀</span></div>
+      <div class="gift-box"></div>
+    </div>
+    <p class="intro-hint">Chạm vào hộp quà để mở 🎁 <br><small>(bật âm thanh lên nhé 🔊)</small></p>
+  </section>
+
+  <!-- ============ APP ============ -->
+  <main id="app" hidden>
+    <nav class="tabs">
+      <button data-tab="home" class="active"><span class="ico">🏠</span><span class="lbl">Lời chúc</span></button>
+      <button data-tab="story"><span class="ico">📖</span><span class="lbl">Kỷ niệm</span></button>
+      <button data-tab="album"><span class="ico">📸</span><span class="lbl">Album</span></button>
+      <button data-tab="cake"><span class="ico">🎂</span><span class="lbl">Bánh kem</span></button>
+    </nav>
+
+    <!-- HOME -->
+    <section class="tab active" id="tab-home">
+      <div class="home">
+        <p class="eyebrow">Hôm nay là ngày của em</p>
+        <h1 class="hb-title">Happy Birthday</h1>
+        <h2 class="hb-name" data-name></h2>
+        <p class="typewriter"><span id="typed"></span><span class="caret"></span></p>
+
+        <div class="glass counter-card">
+          <p>Chúng mình đã yêu nhau được</p>
+          <div class="counter">
+            <div><b id="c-d">0</b><span>ngày</span></div>
+            <div><b id="c-h">0</b><span>giờ</span></div>
+            <div><b id="c-m">0</b><span>phút</span></div>
+            <div><b id="c-s">0</b><span>giây</span></div>
+          </div>
+        </div>
+
+        <button class="cta" data-goto="story">Cùng nhìn lại hành trình của mình 📖</button>
+      </div>
+    </section>
+
+    <!-- STORY -->
+    <section class="tab" id="tab-story">
+      <h2 class="section-title">Hành trình của chúng mình</h2>
+      <p class="section-sub">Kéo xuống để đi qua từng ngày — mỗi cụm ảnh kéo ngang để xem hết</p>
+      <div class="hud" id="hud">
+        <span class="hud-day" id="hud-day">Ngày thứ 1</span>
+        <span class="hud-date" id="hud-date">18 · 08 · 2022</span>
+        <div class="hud-bar"><i id="hud-fill"></i></div>
+      </div>
+      <div class="journey" id="journey"></div>
+    </section>
+
+    <!-- ALBUM -->
+    <section class="tab" id="tab-album">
+      <h2 class="section-title">Những khoảnh khắc</h2>
+      <p class="section-sub">Chạm vào ảnh để xem lớn</p>
+      <div class="album" id="album"></div>
+    </section>
+
+    <!-- CAKE (+ thư mở khoá sau khi thổi nến) -->
+    <section class="tab" id="tab-cake">
+      <h2 class="section-title">Nhắm mắt, ước một điều nhé</h2>
+      <p class="section-sub" id="cake-hint">Rồi bấm micro và thổi thật mạnh để tắt nến 🌬️</p>
+      <div class="cake" id="cake">
+        <div class="candles" id="candles"></div>
+        <div class="layer l1"></div>
+        <div class="layer l2"></div>
+        <div class="layer l3"></div>
+        <div class="plate"></div>
+      </div>
+      <div class="cake-actions">
+        <button class="btn" id="mic-btn">🎤 Bật micro để thổi nến</button>
+      </div>
+
+      <div id="after-wish" hidden>
+        <div class="glass wish-msg">
+          <h3>Chúc mừng sinh nhật <span data-name></span>! 🎉</h3>
+          <p id="final-msg"></p>
+        </div>
+        <div class="envelope-wrap" id="envelope-wrap">
+          <p class="section-sub">Có một lá thư đang chờ em…</p>
+          <div class="envelope" id="envelope" role="button" aria-label="Mở thư">
+            <div class="env-back"></div>
+            <div class="env-letter">For you 💕</div>
+            <div class="env-front"></div>
+            <div class="env-flap"></div>
+            <div class="env-seal">💝</div>
+          </div>
+          <p class="section-sub">Chạm để mở thư</p>
+        </div>
+        <article class="letter-paper" id="letter-paper" hidden>
+          <div id="letter-text"></div>
+          <p class="sign" id="letter-sign"></p>
+        </article>
+      </div>
+    </section>
+  </main>
+
+  <!-- MUSIC -->
+  <button id="music-btn" aria-label="Bật/tắt nhạc" hidden>
+    <span class="vinyl"></span><span class="note">♪</span>
+  </button>
+
+  <!-- LIGHTBOX -->
+  <div id="lightbox" hidden>
+    <button class="lb-close" aria-label="Đóng">✕</button>
+    <button class="lb-nav prev" aria-label="Trước">‹</button>
+    <figure><div class="lb-img"><img alt=""></div><figcaption></figcaption></figure>
+    <button class="lb-nav next" aria-label="Sau">›</button>
+  </div>
+
+  <script src="js/config.js"></script>
+  <script src="js/main.js"></script>
+</body>
+</html>
