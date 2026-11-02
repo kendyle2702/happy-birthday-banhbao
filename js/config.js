@@ -11,7 +11,7 @@ window.CONFIG = {
 
   // Nhạc
   music: {
-    background: "assets/music/hanh-trinh-cua-la.mp3", // nền cho Lời chúc / Kỷ niệm / Album (lặp lại)
+    background: "assets/music/tung-ngay-yeu-em.mp3",   // nền cho Lời chúc / Kỷ niệm / Album (lặp lại)
     birthday: "assets/music/happy-birthday.mp3",      // khi vào tab Bánh kem (lặp lại)
     journeyIntro: "assets/music/khoailangthang.mp3",  // phát 1 lần khi lần đầu mở tab Kỷ niệm, xong quay lại nhạc nền
   },
